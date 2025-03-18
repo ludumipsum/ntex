@@ -105,6 +105,7 @@ pub use crate::http::Response as HttpResponse;
 pub use crate::http::ResponseBuilder as HttpResponseBuilder;
 
 pub use self::app::App;
+pub use self::app_service::AppService;
 pub use self::config::ServiceConfig;
 pub use self::error::{
     DefaultError, Error, ErrorContainer, ErrorRenderer, WebResponseError,
