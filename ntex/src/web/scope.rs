@@ -203,6 +203,10 @@ where
             state.extend(cfg.state);
             self.state = Some(state);
         }
+        if cfg.default.is_some() {
+            self.default = Rc::new(RefCell::new(cfg.default));
+        }
+
         self
     }
 
@@ -1145,12 +1149,17 @@ mod tests {
         let srv = init_service(App::new().service(web::scope("/app").configure(|s| {
             s.state("teat");
             s.route("/path1", web::get().to(|| async { HttpResponse::Ok() }));
+            s.default_service(web::to(|| async { HttpResponse::BadRequest() }));
         })))
         .await;
 
         let req = TestRequest::with_uri("/app/path1").to_request();
         let resp = srv.call(req).await.unwrap();
         assert_eq!(resp.status(), StatusCode::OK);
+
+        let req = TestRequest::with_uri("/app/default_handler").to_request();
+        let resp = srv.call(req).await.unwrap();
+        assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
     }
 
     #[crate::rt_test]

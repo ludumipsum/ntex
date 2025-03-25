@@ -1,11 +1,17 @@
 use std::{net::SocketAddr, rc::Rc};
 
+use ntex_service::boxed::{self, BoxServiceFactory};
+use ntex_service::{chain_factory, IntoServiceFactory, ServiceFactory};
+
 use crate::{router::ResourceDef, util::Extensions};
 
 use super::resource::Resource;
 use super::route::Route;
 use super::service::{AppServiceFactory, ServiceFactoryWrapper, WebServiceFactory};
-use super::{DefaultError, ErrorRenderer};
+use super::{DefaultError, ErrorRenderer, WebRequest, WebResponse};
+
+type HttpNewService<Err: ErrorRenderer> =
+    BoxServiceFactory<(), WebRequest<Err>, WebResponse, Err::Container, ()>;
 
 /// Application configuration
 #[derive(Debug, Clone)]
@@ -61,10 +67,14 @@ impl Default for AppConfig {
 /// Part of application configuration could be offloaded
 /// to set of external methods. This could help with
 /// modularization of big application configuration.
-pub struct ServiceConfig<Err = DefaultError> {
+pub struct ServiceConfig<Err = DefaultError>
+where
+    Err: ErrorRenderer,
+{
     pub(super) services: Vec<Box<dyn AppServiceFactory<Err>>>,
     pub(super) state: Extensions,
     pub(super) external: Vec<ResourceDef>,
+    pub(super) default: Option<Rc<HttpNewService<Err>>>,
 }
 
 impl<Err: ErrorRenderer> ServiceConfig<Err> {
@@ -73,6 +83,7 @@ impl<Err: ErrorRenderer> ServiceConfig<Err> {
             services: Vec::new(),
             state: Extensions::new(),
             external: Vec::new(),
+            default: None,
         }
     }
 
@@ -122,6 +133,20 @@ impl<Err: ErrorRenderer> ServiceConfig<Err> {
         let mut rdef = ResourceDef::new(url.as_ref());
         *rdef.name_mut() = name.as_ref().to_string();
         self.external.push(rdef);
+        self
+    }
+    pub fn default_service<F, S>(&mut self, f: F) -> &mut Self
+    where
+        F: IntoServiceFactory<S, WebRequest<Err>>,
+        S: ServiceFactory<WebRequest<Err>, Response = WebResponse, Error = Err::Container>
+            + 'static,
+        S::InitError: std::fmt::Debug,
+    {
+        // create and configure default resource
+        self.default = Some(Rc::new(boxed::factory(chain_factory(f).map_init_err(
+            |e| log::error!("Cannot construct default service: {:?}", e),
+        ))));
+
         self
     }
 }
@@ -204,5 +229,31 @@ mod tests {
             .to_request();
         let resp = call_service(&srv, req).await;
         assert_eq!(resp.status(), StatusCode::OK);
+    }
+
+    #[crate::rt_test]
+    async fn test_default_service() {
+        let srv = init_service(App::new().configure(|cfg| {
+            cfg.route(
+                "/non_default",
+                web::get().to(|| async { HttpResponse::Ok() }),
+            )
+            .default_service(web::to(|| async {
+                HttpResponse::BadRequest()
+            }));
+        }))
+        .await;
+
+        let req = TestRequest::with_uri("/non_default")
+            .method(Method::GET)
+            .to_request();
+        let resp = call_service(&srv, req).await;
+        assert_eq!(resp.status(), StatusCode::OK);
+
+        let req = TestRequest::with_uri("/definitely_default")
+            .method(Method::GET)
+            .to_request();
+        let resp = call_service(&srv, req).await;
+        assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
     }
 }

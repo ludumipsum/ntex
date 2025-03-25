@@ -180,6 +180,9 @@ where
         self.services.extend(cfg.services);
         self.external.extend(cfg.external);
         self.extensions.extend(cfg.state);
+        if cfg.default.is_some() {
+            self.default = cfg.default;
+        }
         self
     }
 
