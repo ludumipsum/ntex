@@ -158,7 +158,7 @@ mod compio {
     /// operations from blocking the main futures executor.
     pub fn spawn_blocking<F, T>(f: F) -> JoinHandle<T>
     where
-        F: FnOnce() -> T + Send + Sync + 'static,
+        F: FnOnce() -> T + Send + 'static,
         T: Send + 'static,
     {
         JoinHandle {
@@ -344,7 +344,7 @@ mod neon {
     /// operations from blocking the main futures executor.
     pub fn spawn_blocking<F, T>(f: F) -> JoinHandle<T>
     where
-        F: FnOnce() -> T + Send + Sync + 'static,
+        F: FnOnce() -> T + Send  + 'static,
         T: Send + 'static,
     {
         JoinHandle {
@@ -463,7 +463,7 @@ mod no_rt {
 
     pub fn spawn_blocking<F, T>(_: F) -> JoinHandle<T>
     where
-        F: FnOnce() -> T + Send + Sync + 'static,
+        F: FnOnce() -> T + Send + 'static,
         T: Send + 'static,
     {
         unimplemented!()

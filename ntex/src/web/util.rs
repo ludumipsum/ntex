@@ -255,7 +255,7 @@ pub fn service<T: IntoPattern>(path: T) -> WebServiceAdapter {
 /// to result of the function execution.
 pub async fn block<F, I, E>(f: F) -> Result<I, BlockingError<E>>
 where
-    F: FnOnce() -> Result<I, E> + Send + Sync + 'static,
+    F: FnOnce() -> Result<I, E> + Send + 'static,
     I: Send + 'static,
     E: Send + fmt::Debug + 'static,
 {
